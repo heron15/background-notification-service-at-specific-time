@@ -1,7 +1,7 @@
 package com.techtinker.notificationset;
 
 import android.Manifest;
-import android.app.AlarmManager;
+import android.app.Activity;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -16,8 +16,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
-import androidx.core.app.NotificationCompat;
-import androidx.core.app.NotificationManagerCompat;
 
 import com.techtinker.notificationset.databinding.ActivityMainBinding;
 
@@ -26,46 +24,54 @@ import java.util.Calendar;
 public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
 
-    @RequiresApi(api = Build.VERSION_CODES.O)
+    private static final int PERMISSION_REQUEST_CODE = 123;
+    private static final String[] PERMISSIONS = {
+            Manifest.permission.ACCESS_NOTIFICATION_POLICY,
+            Manifest.permission.POST_NOTIFICATIONS
+    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        createNotificationChannel();
+        for (String permission : PERMISSIONS) {
+            if (ActivityCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, PERMISSIONS, PERMISSION_REQUEST_CODE);
+                break;
+            }
+        }
 
-        binding.button.setOnClickListener(v -> {
-            Toast.makeText(this, "Reminder set!", Toast.LENGTH_SHORT).show();
-
-            scheduleNotification();
-        });
+        // Start the foreground service
+        Intent serviceIntent = new Intent(this, NotificationForegroundService.class);
+        serviceIntent.setAction("ACTION_START_FOREGROUND_SERVICE");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
 
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.O)
-    private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            CharSequence name = "LemubitReminderChannel";
-            String description = "Channel Reminder";
-            int importance = NotificationManager.IMPORTANCE_DEFAULT;
-            NotificationChannel channel = new NotificationChannel("notifyLemubit", name, importance);
-            channel.setDescription(description);
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
-            NotificationManager notificationManager = getSystemService(NotificationManager.class);
-            notificationManager.createNotificationChannel(channel);
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            // Check if all permissions are granted
+            boolean allPermissionsGranted = true;
+            for (int result : grantResults) {
+                if (result != PackageManager.PERMISSION_GRANTED) {
+                    allPermissionsGranted = false;
+                    break;
+                }
+            }
+            if (allPermissionsGranted) {
+                // All permissions granted, you can proceed with your logic
+            } else {
+                // Permission denied, you may inform the user or handle it accordingly
+            }
         }
     }
-
-    private void scheduleNotification() {
-        Intent intent = new Intent(MainActivity.this, ReminderBroadcast.class);
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(MainActivity.this,
-                0, intent, PendingIntent.FLAG_IMMUTABLE);
-        AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
-        long timeAtButtonClick = System.currentTimeMillis();
-        long tenSecondsInMillis = 10000; // 10 seconds
-        alarmManager.set(AlarmManager.RTC_WAKEUP, timeAtButtonClick + tenSecondsInMillis,
-                pendingIntent);
-    }
 }
-
